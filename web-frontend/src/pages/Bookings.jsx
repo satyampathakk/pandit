@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../api/config.js';
 import { getAuthToken, getUserType } from '../api/client.js';
@@ -13,6 +13,7 @@ export default function Bookings() {
   const [reviewBookingId, setReviewBookingId] = useState('');
   const [reviewRating, setReviewRating] = useState('5');
   const [reviewComment, setReviewComment] = useState('');
+  const [activeTab, setActiveTab] = useState('upcoming');
   const userType = getUserType();
   const isPandit = userType === 'pandit';
 
@@ -93,11 +94,62 @@ export default function Bookings() {
     }
   };
 
+  const statusGroups = useMemo(
+    () => ({
+      upcoming: ['pending', 'confirmed', 'scheduled'],
+      completed: ['completed'],
+      cancelled: ['cancelled', 'rejected'],
+    }),
+    []
+  );
+
+  const filteredBookings = useMemo(() => {
+    if (isPandit) {
+      return bookings;
+    }
+    const group = statusGroups[activeTab] || [];
+    return bookings.filter((booking) => group.includes(booking.status));
+  }, [bookings, activeTab, statusGroups, isPandit]);
+
+  const tabCounts = useMemo(
+    () => ({
+      upcoming: bookings.filter((booking) => statusGroups.upcoming.includes(booking.status)).length,
+      completed: bookings.filter((booking) => statusGroups.completed.includes(booking.status)).length,
+      cancelled: bookings.filter((booking) => statusGroups.cancelled.includes(booking.status)).length,
+    }),
+    [bookings, statusGroups]
+  );
+
   return (
     <div className="container">
       <div className="page-header">
         <h2>{isPandit ? 'Booking Requests' : 'My Bookings'}</h2>
         <p>{isPandit ? 'Manage requests for your services' : 'View and manage your bookings'}</p>
+        {!isPandit ? (
+          <div className="tabs" style={{ marginTop: '18px' }}>
+            <button
+              type="button"
+              className={`tab-button ${activeTab === 'upcoming' ? 'active' : ''}`}
+              onClick={() => setActiveTab('upcoming')}
+            >
+              Upcoming ({tabCounts.upcoming})
+            </button>
+            <button
+              type="button"
+              className={`tab-button ${activeTab === 'completed' ? 'active' : ''}`}
+              onClick={() => setActiveTab('completed')}
+            >
+              Completed ({tabCounts.completed})
+            </button>
+            <button
+              type="button"
+              className={`tab-button ${activeTab === 'cancelled' ? 'active' : ''}`}
+              onClick={() => setActiveTab('cancelled')}
+            >
+              Cancelled ({tabCounts.cancelled})
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {message.text ? (
@@ -117,126 +169,136 @@ export default function Bookings() {
             )}
           </p>
         ) : null}
+        {!loading && bookings.length > 0 && filteredBookings.length === 0 ? (
+          <p className="no-results">No bookings in this section yet.</p>
+        ) : null}
         {!loading
-          ? bookings.map((booking) => (
+          ? filteredBookings.map((booking) => (
               <div className="booking-card" key={booking.id}>
-                <div className="booking-header">
-                  <h3>Booking #{booking.id.substring(0, 8)}</h3>
+                <div className="booking-left">
+                  <div className="booking-avatar">P</div>
+                  <div className="booking-info">
+                    <h3>{booking.service_name || `Booking #${booking.id.substring(0, 8)}`}</h3>
+                    <p>{new Date(booking.booking_date).toLocaleString()}</p>
+                    <p>Amount: Rs {booking.total_amount}</p>
+                  </div>
+                </div>
+                <div>
                   <span className={`status-badge status-${booking.status}`}>
                     {booking.status}
                   </span>
-                </div>
-                <div className="booking-details">
-                  <p>
-                    <strong>Date:</strong> {new Date(booking.booking_date).toLocaleString()}
-                  </p>
-                  <p>
-                    <strong>Amount:</strong> Rs {booking.total_amount}
-                  </p>
-                  <p>
-                    <strong>Service ID:</strong> {booking.service_id}
-                  </p>
-                  <p>
-                    <strong>Pandit ID:</strong> {booking.pandit_id}
-                  </p>
-                  {booking.service_address ? (
-                    <p>
-                      <strong>Address:</strong> {booking.service_address}
-                    </p>
-                  ) : null}
-                </div>
-                {!isPandit && booking.status === 'completed' ? (
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => openReviewModal(booking.id)}
-                  >
-                    Leave Review
-                  </button>
-                ) : null}
-                {isPandit ? (
-                  <div className="action-buttons" style={{ marginTop: '10px' }}>
-                    {booking.status === 'pending' ? (
-                      <>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          onClick={async () => {
-                            const token = getAuthToken();
-                            const response = await fetch(
-                              `${API_BASE_URL}/pandit/bookings/${booking.id}/confirm`,
-                              {
-                                method: 'PUT',
-                                headers: { Authorization: `Bearer ${token}` },
-                              }
-                            );
-                            if (response.ok) {
-                              showMessage('Booking confirmed', 'success');
-                              loadBookings();
-                            } else {
-                              const error = await response.json();
-                              showMessage(error.detail || 'Failed to confirm booking', 'error');
-                            }
-                          }}
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={async () => {
-                            const token = getAuthToken();
-                            const response = await fetch(
-                              `${API_BASE_URL}/pandit/bookings/${booking.id}/reject`,
-                              {
-                                method: 'PUT',
-                                headers: { Authorization: `Bearer ${token}` },
-                              }
-                            );
-                            if (response.ok) {
-                              showMessage('Booking rejected', 'success');
-                              loadBookings();
-                            } else {
-                              const error = await response.json();
-                              showMessage(error.detail || 'Failed to reject booking', 'error');
-                            }
-                          }}
-                        >
-                          Reject
-                        </button>
-                      </>
-                    ) : null}
-                    {booking.status === 'confirmed' ? (
+                  <div className="booking-actions" style={{ marginTop: '10px' }}>
+                    {!isPandit && booking.status === 'completed' ? (
                       <button
                         type="button"
-                        className="btn btn-primary"
-                        onClick={async () => {
-                          const token = getAuthToken();
-                          const response = await fetch(
-                            `${API_BASE_URL}/pandit/bookings/${booking.id}/complete`,
-                            {
-                              method: 'PUT',
-                              headers: { Authorization: `Bearer ${token}` },
-                            }
-                          );
-                          if (response.ok) {
-                            showMessage('Booking marked as completed', 'success');
-                            loadBookings();
-                          } else {
-                            const error = await response.json();
-                            showMessage(error.detail || 'Failed to complete booking', 'error');
-                          }
-                        }}
+                        className="btn btn-secondary"
+                        onClick={() => openReviewModal(booking.id)}
                       >
-                        Mark Completed
+                        Leave Review
                       </button>
                     ) : null}
+                    {isPandit ? (
+                      <>
+                        {booking.status === 'pending' ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={async () => {
+                                const token = getAuthToken();
+                                const response = await fetch(
+                                  `${API_BASE_URL}/pandit/bookings/${booking.id}/confirm`,
+                                  {
+                                    method: 'PUT',
+                                    headers: { Authorization: `Bearer ${token}` },
+                                  }
+                                );
+                                if (response.ok) {
+                                  showMessage('Booking confirmed', 'success');
+                                  loadBookings();
+                                } else {
+                                  const error = await response.json();
+                                  showMessage(error.detail || 'Failed to confirm booking', 'error');
+                                }
+                              }}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={async () => {
+                                const token = getAuthToken();
+                                const response = await fetch(
+                                  `${API_BASE_URL}/pandit/bookings/${booking.id}/reject`,
+                                  {
+                                    method: 'PUT',
+                                    headers: { Authorization: `Bearer ${token}` },
+                                  }
+                                );
+                                if (response.ok) {
+                                  showMessage('Booking rejected', 'success');
+                                  loadBookings();
+                                } else {
+                                  const error = await response.json();
+                                  showMessage(error.detail || 'Failed to reject booking', 'error');
+                                }
+                              }}
+                            >
+                              Reject
+                            </button>
+                          </>
+                        ) : null}
+                        {booking.status === 'confirmed' ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={async () => {
+                              const token = getAuthToken();
+                              const response = await fetch(
+                                `${API_BASE_URL}/pandit/bookings/${booking.id}/complete`,
+                                {
+                                  method: 'PUT',
+                                  headers: { Authorization: `Bearer ${token}` },
+                                }
+                              );
+                              if (response.ok) {
+                                showMessage('Booking marked as completed', 'success');
+                                loadBookings();
+                              } else {
+                                const error = await response.json();
+                                showMessage(error.detail || 'Failed to complete booking', 'error');
+                              }
+                            }}
+                          >
+                            Mark Completed
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <button type="button" className="btn btn-primary">
+                        View Details
+                      </button>
+                    )}
                   </div>
-                ) : null}
+                </div>
               </div>
             ))
           : null}
       </div>
+      {!isPandit ? (
+        <div className="promo-card" style={{ marginTop: '24px' }}>
+          <div>
+            <h3>Plan your next spiritual milestone</h3>
+            <p className="section-subtitle">
+              Explore premium puja services and personal astrology consultations curated for you.
+            </p>
+          </div>
+          <button type="button" className="btn btn-primary">
+            Explore Services
+          </button>
+        </div>
+      ) : null}
 
       <div id="reviewModal" className={`modal ${showReviewModal ? '' : 'hidden'}`}>
         <div className="modal-content">

@@ -17,7 +17,14 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <div className="nav-container">
-        <h1 className="nav-logo">Pandit Booking</h1>
+        <div className="nav-brand">
+          <div className="brand-mark">P</div>
+          <div>
+            <div className="brand-title">PANDIT</div>
+            <div className="brand-subtitle">Divine services</div>
+          </div>
+        </div>
+
         <ul className="nav-menu">
           <li>
             <NavLink to="/dashboard" className={navLinkClass}>
@@ -62,6 +69,22 @@ export default function Navbar() {
             </button>
           </li>
         </ul>
+
+        <div className="nav-actions">
+          <div className="nav-search">
+            <input type="text" placeholder="Search services..." />
+            <button type="button" className="nav-search-btn">
+              Search
+            </button>
+          </div>
+          <button type="button" className="nav-icon-button" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2">
+              <path d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+              <path d="M9 17a3 3 0 0 0 6 0" />
+            </svg>
+          </button>
+          <div className="nav-avatar">A</div>
+        </div>
       </div>
     </nav>
   );

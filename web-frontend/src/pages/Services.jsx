@@ -126,70 +126,123 @@ export default function Services() {
     };
   }, [selectedService]);
 
+  const categories = useMemo(() => {
+    const unique = new Set(services.map((service) => service.category).filter(Boolean));
+    return ['All', ...Array.from(unique)];
+  }, [services]);
+
+  const [activeCategory, setActiveCategory] = useState('All');
+
+  const filteredServices = useMemo(() => {
+    if (activeCategory === 'All') {
+      return services;
+    }
+    return services.filter((service) => service.category === activeCategory);
+  }, [services, activeCategory]);
+
   return (
     <div className="container">
-      <div className="page-header">
-        <h2>Available Services</h2>
-        <p>Browse and search for spiritual services</p>
-      </div>
+      <div className="page-shell">
+        <section className="hero services-hero">
+          <div className="hero-content">
+            <span className="hero-badge">Limited Offer</span>
+            <h1>Experience Divine Services</h1>
+            <p>
+              Traditional rituals meet modern convenience. Book verified pandits for
+              any occasion.
+            </p>
+            <div className="hero-search">
+              <input
+                type="text"
+                placeholder="Search for puja, astrology, or rituals"
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+              />
+              <button type="button" onClick={searchServices}>
+                Search
+              </button>
+            </div>
+          </div>
+        </section>
 
-      {message.text ? (
-        <div className={`message ${message.type}`}>{message.text}</div>
-      ) : null}
-
-      <div className="search-section">
-        <input
-          type="text"
-          id="searchKeyword"
-          placeholder="Search services..."
-          className="search-input"
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
-        />
-        <button type="button" onClick={searchServices} className="btn btn-primary">
-          Search
-        </button>
-      </div>
-
-      <div className="filter-section">
-        <select
-          id="sortBy"
-          value={sortBy}
-          onChange={(event) => {
-            setSortBy(event.target.value);
-            setTimeout(searchServices, 0);
-          }}
-        >
-          <option value="price_asc">Price: Low to High</option>
-          <option value="price_desc">Price: High to Low</option>
-          <option value="name_asc">Name: A to Z</option>
-          <option value="name_desc">Name: Z to A</option>
-        </select>
-      </div>
-
-      <div id="servicesList" className="services-grid">
-        {loading ? <p className="loading">Loading services...</p> : null}
-        {!loading && services.length === 0 ? (
-          <p className="no-results">No services found</p>
+        {message.text ? (
+          <div className={`message ${message.type}`}>{message.text}</div>
         ) : null}
-        {!loading
-          ? services.map((service) => (
-              <div className="service-card" key={service.id}>
-                <h3>{service.name}</h3>
-                <p className="category">Category: {service.category}</p>
-                <p className="price">Rs {service.base_price}</p>
-                <p className="duration">Duration: {service.duration_minutes} minutes</p>
+
+        <section className="section">
+          <div className="section-heading">
+            <div>
+              <h2 className="section-title">Our Sacred Services</h2>
+              <p className="section-subtitle">
+                Curated puja services and consultations designed for your milestones.
+              </p>
+            </div>
+            <div className="chip-group">
+              {categories.map((category) => (
                 <button
+                  key={category}
                   type="button"
-                  className="btn btn-primary"
-                  style={{ marginTop: '15px' }}
-                  onClick={() => openBooking(service)}
+                  className={`chip ${activeCategory === category ? 'active' : ''}`}
+                  onClick={() => setActiveCategory(category)}
                 >
-                  Book This Service
+                  {category}
                 </button>
-              </div>
-            ))
-          : null}
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+            <select
+              id="sortBy"
+              value={sortBy}
+              onChange={(event) => {
+                setSortBy(event.target.value);
+                setTimeout(searchServices, 0);
+              }}
+            >
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
+              <option value="name_asc">Name: A to Z</option>
+              <option value="name_desc">Name: Z to A</option>
+            </select>
+          </div>
+
+          <div id="servicesList" className="services-grid">
+            {loading ? <p className="loading">Loading services...</p> : null}
+            {!loading && filteredServices.length === 0 ? (
+              <p className="no-results">No services found</p>
+            ) : null}
+            {!loading
+              ? filteredServices.map((service) => (
+                  <div className="service-card" key={service.id}>
+                    <div className="service-thumb" />
+                    <div className="service-body">
+                      <div>
+                        <h3>{service.name}</h3>
+                        <p className="section-subtitle">
+                          {service.category} service for sacred moments.
+                        </p>
+                      </div>
+                      <div className="service-meta">
+                        <span className="tag">{service.category}</span>
+                        <span className="tag">{service.duration_minutes} min</span>
+                      </div>
+                      <div className="service-footer">
+                        <span className="service-price">Starting at Rs {service.base_price}</span>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => openBooking(service)}
+                        >
+                          Book Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              : null}
+          </div>
+        </section>
       </div>
 
       <div

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../api/config.js';
 import { getAuthToken } from '../api/client.js';
@@ -28,6 +28,21 @@ export default function Pandits() {
     longitude: '',
     locationName: '',
   });
+
+  const activeLocation = location.locationName || 'your area';
+
+  const getPanditName = (pandit) =>
+    pandit.full_name || pandit.name || `Pandit ${pandit.id?.slice(0, 4) || 'Profile'}`;
+
+  const getInitials = (name) =>
+    name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0].toUpperCase())
+      .join('');
+
+  const filteredPandits = useMemo(() => pandits, [pandits]);
 
   const loadNearbyPandits = async () => {
     setLoading(true);
@@ -146,253 +161,271 @@ export default function Pandits() {
 
   return (
     <div className="container">
-      <div className="page-header">
-        <h2>Find Pandits</h2>
-        <p>Discover experienced pandits in your area</p>
-      </div>
+      <div className="page-shell">
+        <section className="hero pandits-hero">
+          <div className="hero-content">
+            <span className="hero-badge">Limited Offer</span>
+            <h1>Maha Shivratri Special</h1>
+            <p>
+              Book verified pandits for Rudrabhishek and Shiva Puja. Experience divinity at
+              home or temple.
+            </p>
+            <button type="button" className="btn btn-primary">
+              Explore Rituals
+            </button>
+          </div>
+        </section>
 
-      {message.text ? (
-        <div className={`message ${message.type}`}>{message.text}</div>
-      ) : null}
+        {message.text ? (
+          <div className={`message ${message.type}`}>{message.text}</div>
+        ) : null}
 
-      <div className="filter-section">
-        <div className="form-group">
-          <label htmlFor="maxDistance">Max Distance (km)</label>
-          <input
-            id="maxDistance"
-            type="number"
-            min="1"
-            value={filters.maxDistance}
-            onChange={(event) =>
-              setFilters((prev) => ({ ...prev, maxDistance: event.target.value }))
-            }
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="minRating">Min Rating</label>
-          <input
-            id="minRating"
-            type="number"
-            min="0"
-            max="5"
-            step="0.1"
-            value={filters.minRating}
-            onChange={(event) =>
-              setFilters((prev) => ({ ...prev, minRating: event.target.value }))
-            }
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="maxPrice">Max Price</label>
-          <input
-            id="maxPrice"
-            type="number"
-            min="0"
-            value={filters.maxPrice}
-            onChange={(event) =>
-              setFilters((prev) => ({ ...prev, maxPrice: event.target.value }))
-            }
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="sortBy">Sort By</label>
-          <select
-            id="sortBy"
-            value={filters.sortBy}
-            onChange={(event) =>
-              setFilters((prev) => ({ ...prev, sortBy: event.target.value }))
-            }
-          >
-            <option value="match_score">Best Match</option>
-            <option value="distance">Distance</option>
-            <option value="price">Price</option>
-            <option value="rating">Rating</option>
-          </select>
-        </div>
-        <button type="button" onClick={loadNearbyPandits} className="btn btn-primary">
-          Find Pandits
-        </button>
-      </div>
-
-      <div className="page-header" style={{ marginTop: '20px' }}>
-        <h2>Update Location</h2>
-        <p>Nearby search requires your current location</p>
-      </div>
-      <div className="filter-section">
-        <div className="form-group">
-          <label htmlFor="userLatitude">Latitude</label>
-          <input
-            id="userLatitude"
-            type="number"
-            step="any"
-            value={location.latitude}
-            onChange={(event) =>
-              setLocation((prev) => ({ ...prev, latitude: event.target.value }))
-            }
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="userLongitude">Longitude</label>
-          <input
-            id="userLongitude"
-            type="number"
-            step="any"
-            value={location.longitude}
-            onChange={(event) =>
-              setLocation((prev) => ({ ...prev, longitude: event.target.value }))
-            }
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="userLocationName">Location Name</label>
-          <input
-            id="userLocationName"
-            type="text"
-            value={location.locationName}
-            onChange={(event) =>
-              setLocation((prev) => ({ ...prev, locationName: event.target.value }))
-            }
-          />
-        </div>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => {
-            if (!navigator.geolocation) {
-              showMessage('Geolocation is not supported by this browser.', 'error');
-              return;
-            }
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                setLocation((prev) => ({
-                  ...prev,
-                  latitude: pos.coords.latitude.toString(),
-                  longitude: pos.coords.longitude.toString(),
-                }));
-                showMessage('Location captured. Click Save Location.', 'success');
-              },
-              () => {
-                showMessage('Unable to get location. Please enter manually.', 'error');
+        <div className="filter-bar">
+          <div className="form-group">
+            <label htmlFor="maxDistance">Max Distance (km)</label>
+            <input
+              id="maxDistance"
+              type="number"
+              min="1"
+              value={filters.maxDistance}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, maxDistance: event.target.value }))
               }
-            );
-          }}
-        >
-          Use Current Location
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={async () => {
-            const token = getAuthToken();
-            if (!token) {
-              showMessage('Please login again.', 'error');
-              navigate('/');
-              return;
-            }
-            if (!location.latitude || !location.longitude) {
-              showMessage('Please enter latitude and longitude.', 'error');
-              return;
-            }
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="minRating">Min Rating</label>
+            <input
+              id="minRating"
+              type="number"
+              min="0"
+              max="5"
+              step="0.1"
+              value={filters.minRating}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, minRating: event.target.value }))
+              }
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="maxPrice">Max Price</label>
+            <input
+              id="maxPrice"
+              type="number"
+              min="0"
+              value={filters.maxPrice}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, maxPrice: event.target.value }))
+              }
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="sortBy">Sort By</label>
+            <select
+              id="sortBy"
+              value={filters.sortBy}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, sortBy: event.target.value }))
+              }
+            >
+              <option value="match_score">Best Match</option>
+              <option value="distance">Distance</option>
+              <option value="price">Price</option>
+              <option value="rating">Rating</option>
+            </select>
+          </div>
+          <button type="button" onClick={loadNearbyPandits} className="btn btn-primary">
+            Apply Filters
+          </button>
+        </div>
 
-            const params = new URLSearchParams({
-              latitude: location.latitude,
-              longitude: location.longitude,
-            });
-            if (location.locationName) {
-              params.append('location_name', location.locationName);
-            }
-
-            try {
-              const response = await fetch(
-                `${API_BASE_URL}/user/location?${params.toString()}`,
-                {
-                  method: 'PUT',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
+        <div className="page-header" style={{ marginTop: '12px' }}>
+          <h2>Update Location</h2>
+          <p>Nearby search requires your current location</p>
+        </div>
+        <div className="filter-bar">
+          <div className="form-group">
+            <label htmlFor="userLatitude">Latitude</label>
+            <input
+              id="userLatitude"
+              type="number"
+              step="any"
+              value={location.latitude}
+              onChange={(event) =>
+                setLocation((prev) => ({ ...prev, latitude: event.target.value }))
+              }
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="userLongitude">Longitude</label>
+            <input
+              id="userLongitude"
+              type="number"
+              step="any"
+              value={location.longitude}
+              onChange={(event) =>
+                setLocation((prev) => ({ ...prev, longitude: event.target.value }))
+              }
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="userLocationName">Location Name</label>
+            <input
+              id="userLocationName"
+              type="text"
+              value={location.locationName}
+              onChange={(event) =>
+                setLocation((prev) => ({ ...prev, locationName: event.target.value }))
+              }
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              if (!navigator.geolocation) {
+                showMessage('Geolocation is not supported by this browser.', 'error');
+                return;
+              }
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  setLocation((prev) => ({
+                    ...prev,
+                    latitude: pos.coords.latitude.toString(),
+                    longitude: pos.coords.longitude.toString(),
+                  }));
+                  showMessage('Location captured. Click Save Location.', 'success');
+                },
+                () => {
+                  showMessage('Unable to get location. Please enter manually.', 'error');
                 }
               );
-              if (response.ok) {
-                showMessage('Location updated successfully!', 'success');
-              } else {
-                const error = await response.json();
-                showMessage(error.detail || 'Failed to update location', 'error');
+            }}
+          >
+            Use Current Location
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={async () => {
+              const token = getAuthToken();
+              if (!token) {
+                showMessage('Please login again.', 'error');
+                navigate('/');
+                return;
               }
-            } catch (error) {
-              showMessage('Failed to update location', 'error');
-              console.error('Update location error:', error);
-            }
-          }}
-        >
-          Save Location
-        </button>
-      </div>
+              if (!location.latitude || !location.longitude) {
+                showMessage('Please enter latitude and longitude.', 'error');
+                return;
+              }
 
-      <div id="panditsList" className="pandits-grid">
-        {loading ? <p className="loading">Loading pandits...</p> : null}
-        {!loading && pandits.length === 0 ? (
-          <p className="no-results">No pandits found. Adjust filters or update location.</p>
-        ) : null}
-        {!loading
-          ? pandits.map((pandit) => {
-              const rating = Number.isFinite(pandit.rating_avg)
-                ? pandit.rating_avg.toFixed(1)
-                : 'N/A';
+              const params = new URLSearchParams({
+                latitude: location.latitude,
+                longitude: location.longitude,
+              });
+              if (location.locationName) {
+                params.append('location_name', location.locationName);
+              }
 
-              return (
-                <div className="pandit-card" key={pandit.id}>
-                  <div className="pandit-header">
-                    <h3>Pandit Profile</h3>
-                    {pandit.is_verified ? (
-                      <span className="verified-badge">Verified</span>
-                    ) : null}
-                  </div>
-                  <div className="pandit-info">
-                    <p>
-                      <strong>Experience:</strong> {pandit.experience_years} years
-                    </p>
-                    <p>
-                      <strong>Region:</strong> {pandit.region}
-                    </p>
-                    <p>
-                      <strong>Languages:</strong> {pandit.languages}
-                    </p>
-                    {pandit.location_name ? (
-                      <p>
-                        <strong>Location:</strong> {pandit.location_name}
-                      </p>
-                    ) : null}
-                    {showDistance && pandit.distance_km ? (
-                      <p>
-                        <strong>Distance:</strong> {pandit.distance_km} km
-                      </p>
-                    ) : null}
-                    <p>
-                      <strong>Rating:</strong> {rating}/5
-                    </p>
-                    <p>
-                      <strong>Price:</strong> Rs {pandit.price_per_service}
-                    </p>
-                    {showDistance && pandit.match_score ? (
-                      <p>
-                        <strong>Match Score:</strong> {(pandit.match_score * 100).toFixed(0)}%
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="pandit-bio">
-                    <p>{pandit.bio}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => openBookingModal(pandit.id)}
-                  >
-                    Book Now
-                  </button>
-                </div>
-              );
-            })
-          : null}
+              try {
+                const response = await fetch(
+                  `${API_BASE_URL}/user/location?${params.toString()}`,
+                  {
+                    method: 'PUT',
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                    },
+                  }
+                );
+                if (response.ok) {
+                  showMessage('Location updated successfully!', 'success');
+                } else {
+                  const error = await response.json();
+                  showMessage(error.detail || 'Failed to update location', 'error');
+                }
+              } catch (error) {
+                showMessage('Failed to update location', 'error');
+                console.error('Update location error:', error);
+              }
+            }}
+          >
+            Save Location
+          </button>
+        </div>
+
+        <section className="section">
+          <div className="section-heading">
+            <div>
+              <h2 className="section-title">Top Rated Pandits in {activeLocation}</h2>
+              <p className="section-subtitle">Verified experts for your spiritual needs</p>
+            </div>
+            <div className="section-subtitle">
+              Showing {filteredPandits.length} results
+            </div>
+          </div>
+
+          <div id="panditsList" className="pandits-grid">
+            {loading ? <p className="loading">Loading pandits...</p> : null}
+            {!loading && filteredPandits.length === 0 ? (
+              <p className="no-results">No pandits found. Adjust filters or update location.</p>
+            ) : null}
+            {!loading
+              ? filteredPandits.map((pandit) => {
+                  const rating = Number.isFinite(pandit.rating_avg)
+                    ? pandit.rating_avg.toFixed(1)
+                    : 'N/A';
+                  const name = getPanditName(pandit);
+                  const languages = pandit.languages
+                    ? pandit.languages.split(',').map((lang) => lang.trim())
+                    : [];
+
+                  return (
+                    <div className="pandit-card" key={pandit.id}>
+                      <div className="pandit-header">
+                        <div className="pandit-avatar">{getInitials(name)}</div>
+                        <div>
+                          <h3>{name}</h3>
+                          <div className="rating-row">
+                            <span className="rating-stars">{rating}</span>
+                            <span>rating</span>
+                            {pandit.experience_years ? (
+                              <span>{pandit.experience_years} years experience</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="pandit-meta">
+                        {languages.slice(0, 3).map((lang) => (
+                          <span className="tag" key={`${pandit.id}-${lang}`}>
+                            {lang}
+                          </span>
+                        ))}
+                        {pandit.region ? <span className="tag">{pandit.region}</span> : null}
+                      </div>
+                      <div className="section-subtitle">
+                        {pandit.bio || 'Specialist in traditional rituals and personalized guidance.'}
+                      </div>
+                      <div className="service-footer">
+                        <span className="pandit-price">Starting from Rs {pandit.price_per_service}</span>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => openBookingModal(pandit.id)}
+                        >
+                          Book Now
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              : null}
+          </div>
+          <div className="load-more">
+            <button type="button" className="btn btn-secondary">
+              Load More Pandits
+            </button>
+          </div>
+        </section>
       </div>
 
       <div id="bookingModal" className={`modal ${showBookingModal ? '' : 'hidden'}`}>
