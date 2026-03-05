@@ -8,6 +8,7 @@ export default function Pandits() {
   const navigate = useNavigate();
   const { message, showMessage } = useFlashMessage();
   const [pandits, setPandits] = useState([]);
+  const [allPandits, setAllPandits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showDistance, setShowDistance] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -43,6 +44,67 @@ export default function Pandits() {
       .join('');
 
   const filteredPandits = useMemo(() => pandits, [pandits]);
+  const openPanditPortal = (panditId) => {
+    navigate(`/pandits/${panditId}`);
+  };
+
+  const loadAllPandits = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        return;
+      }
+      const response = await fetch(`${API_BASE_URL}/user/pandits?skip=0&limit=100`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      setAllPandits(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Load all pandits error:', error);
+    }
+  };
+
+  const persistLocationIfNeeded = async () => {
+    if (!location.latitude || !location.longitude) {
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      showMessage('Please login again.', 'error');
+      navigate('/');
+      return;
+    }
+
+    const params = new URLSearchParams({
+      latitude: location.latitude,
+      longitude: location.longitude,
+    });
+    if (location.locationName) {
+      params.append('location_name', location.locationName);
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/user/location?${params.toString()}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        showMessage(error.detail || 'Failed to update location', 'error');
+      }
+    } catch (error) {
+      showMessage('Failed to update location', 'error');
+      console.error('Update location error:', error);
+    }
+  };
 
   const loadNearbyPandits = async () => {
     setLoading(true);
@@ -55,6 +117,7 @@ export default function Pandits() {
     }
 
     try {
+      await persistLocationIfNeeded();
       const params = new URLSearchParams({
         max_distance_km: String(filters.maxDistance || 50),
         min_rating: String(filters.minRating || 0),
@@ -62,6 +125,10 @@ export default function Pandits() {
       });
       if (filters.maxPrice) {
         params.append('max_price', filters.maxPrice);
+      }
+      if (location.latitude && location.longitude) {
+        params.append('latitude', location.latitude);
+        params.append('longitude', location.longitude);
       }
 
       const response = await fetch(`${API_BASE_URL}/user/pandits/search?${params.toString()}`, {
@@ -98,17 +165,16 @@ export default function Pandits() {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/user/services?skip=0&limit=200`, {
+      const response = await fetch(`${API_BASE_URL}/user/pandits/${panditId}/services`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       const data = await response.json();
       const list = Array.isArray(data) ? data : [];
-      const filtered = list.filter((service) => service.pandit_id === panditId);
-      setServices(filtered);
-      if (filtered.length > 0) {
-        setBookingServiceId(filtered[0].id);
+      setServices(list);
+      if (list.length > 0) {
+        setBookingServiceId(list[0].id);
       }
     } catch (error) {
       showMessage('Error loading services', 'error');
@@ -367,7 +433,12 @@ export default function Pandits() {
           <div id="panditsList" className="pandits-grid">
             {loading ? <p className="loading">Loading pandits...</p> : null}
             {!loading && filteredPandits.length === 0 ? (
-              <p className="no-results">No pandits found. Adjust filters or update location.</p>
+              <div className="no-results">
+                <p>No pandits found nearby. Adjust filters or update location.</p>
+                <button type="button" className="btn btn-secondary" onClick={loadAllPandits}>
+                  Show all verified pandits
+                </button>
+              </div>
             ) : null}
             {!loading
               ? filteredPandits.map((pandit) => {
@@ -380,7 +451,18 @@ export default function Pandits() {
                     : [];
 
                   return (
-                    <div className="pandit-card" key={pandit.id}>
+                    <div
+                      className="pandit-card"
+                      key={pandit.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openPanditPortal(pandit.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          openPanditPortal(pandit.id);
+                        }
+                      }}
+                    >
                       <div className="pandit-header">
                         <div className="pandit-avatar">{getInitials(name)}</div>
                         <div>
@@ -410,7 +492,10 @@ export default function Pandits() {
                         <button
                           type="button"
                           className="btn btn-primary"
-                          onClick={() => openBookingModal(pandit.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openBookingModal(pandit.id);
+                          }}
                         >
                           Book Now
                         </button>
@@ -420,12 +505,101 @@ export default function Pandits() {
                 })
               : null}
           </div>
-          <div className="load-more">
-            <button type="button" className="btn btn-secondary">
-              Load More Pandits
-            </button>
-          </div>
+          {!loading && filteredPandits.length > 0 ? (
+            <div className="load-more">
+              <button type="button" className="btn btn-secondary">
+                Load More Pandits
+              </button>
+            </div>
+          ) : null}
         </section>
+
+        {allPandits.length > 0 ? (
+          <section className="section">
+            <div className="section-separator">
+              <span>All Verified Pandits</span>
+            </div>
+            <div className="section-heading">
+              <div>
+                <h2 className="section-title">All Verified Pandits</h2>
+                <p className="section-subtitle">
+                  Showing verified pandits across the platform
+                </p>
+              </div>
+              <div className="section-subtitle">
+                Showing {allPandits.length} results
+              </div>
+            </div>
+
+            <div className="pandits-grid">
+              {allPandits.map((pandit) => {
+                const rating = Number.isFinite(pandit.rating_avg)
+                  ? pandit.rating_avg.toFixed(1)
+                  : 'N/A';
+                const name = getPanditName(pandit);
+                const languages = pandit.languages
+                  ? pandit.languages.split(',').map((lang) => lang.trim())
+                  : [];
+
+                return (
+                  <div
+                    className="pandit-card"
+                    key={`all-${pandit.id}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openPanditPortal(pandit.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        openPanditPortal(pandit.id);
+                      }
+                    }}
+                  >
+                    <div className="pandit-header">
+                      <div className="pandit-avatar">{getInitials(name)}</div>
+                      <div>
+                        <h3>{name}</h3>
+                        <div className="rating-row">
+                          <span className="rating-stars">{rating}</span>
+                          <span>rating</span>
+                          {pandit.experience_years ? (
+                            <span>{pandit.experience_years} years experience</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pandit-meta">
+                      {languages.slice(0, 3).map((lang) => (
+                        <span className="tag" key={`all-${pandit.id}-${lang}`}>
+                          {lang}
+                        </span>
+                      ))}
+                      {pandit.region ? <span className="tag">{pandit.region}</span> : null}
+                    </div>
+                    <div className="section-subtitle">
+                      {pandit.bio ||
+                        'Specialist in traditional rituals and personalized guidance.'}
+                    </div>
+                    <div className="service-footer">
+                      <span className="pandit-price">
+                        Starting from Rs {pandit.price_per_service}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openBookingModal(pandit.id);
+                        }}
+                      >
+                        Book Now
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
       </div>
 
       <div id="bookingModal" className={`modal ${showBookingModal ? '' : 'hidden'}`}>

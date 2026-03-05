@@ -19,6 +19,7 @@ def create_admin():
         email = input("Enter admin email: ").strip()
         password = input("Enter admin password: ").strip()
         
+        
         if not username or not email or not password:
             print("Error: All fields are required!")
             return

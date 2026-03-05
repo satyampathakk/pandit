@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from typing import Optional
 import models, schemas
 from auth import get_current_pandit, get_db
 
@@ -13,22 +15,37 @@ def get_profile(pandit=Depends(get_current_pandit)):
 # Update pandit profile
 @router.put("/pandit/profile")
 def update_profile(
+    full_name: str = Query(None),
+    phone: str = Query(None),
+    email: str = Query(None),
     bio: str = Query(None),
     region: str = Query(None),
     languages: str = Query(None),
+    experience_years: int = Query(None, ge=0),
     price_per_service: float = Query(None),
+    location_name: str = Query(None),
     db: Session = Depends(get_db),
     pandit=Depends(get_current_pandit)
 ):
     """Update pandit's profile information"""
+    if full_name:
+        pandit.full_name = full_name
+    if phone:
+        pandit.phone = phone
+    if email is not None:
+        pandit.email = email
     if bio:
         pandit.bio = bio
     if region:
         pandit.region = region
     if languages:
         pandit.languages = languages
+    if experience_years is not None:
+        pandit.experience_years = experience_years
     if price_per_service is not None:
         pandit.price_per_service = price_per_service
+    if location_name:
+        pandit.location_name = location_name
     
     db.commit()
     return {"msg": "Profile updated successfully"}
@@ -160,13 +177,50 @@ def view_bookings(
     status: str = Query(None, description="Filter by status")
 ):
     """View all bookings for this pandit's services"""
-    query = db.query(models.Booking).filter(models.Booking.pandit_id == pandit.id)
+    query = (
+        db.query(
+            models.Booking,
+            models.Service.name.label("service_name"),
+            models.User.full_name.label("user_name"),
+        )
+        .outerjoin(models.Service, models.Service.id == models.Booking.service_id)
+        .outerjoin(models.User, models.User.id == models.Booking.user_id)
+        .filter(models.Booking.pandit_id == pandit.id)
+    )
     
     if status:
         query = query.filter(models.Booking.status == status)
     
-    bookings = query.order_by(models.Booking.created_at.desc()).all()
-    return bookings
+    rows = query.order_by(models.Booking.created_at.desc()).all()
+    reviewed_ids = {
+        row.booking_id
+        for row in db.query(models.Review.booking_id)
+        .filter(
+            models.Review.reviewer_id == pandit.id,
+            models.Review.reviewer_type == "pandit",
+        )
+        .all()
+    }
+
+    def to_response(booking: models.Booking, service_name: Optional[str], user_name: Optional[str]):
+        return {
+            "id": booking.id,
+            "user_id": booking.user_id,
+            "pandit_id": booking.pandit_id,
+            "service_id": booking.service_id,
+            "booking_date": booking.booking_date,
+            "service_address": booking.service_address,
+            "service_latitude": booking.service_latitude,
+            "service_longitude": booking.service_longitude,
+            "service_location_name": booking.service_location_name,
+            "status": booking.status,
+            "total_amount": booking.total_amount,
+            "service_name": service_name,
+            "user_name": user_name,
+            "reviewed_by_pandit": booking.id in reviewed_ids,
+        }
+
+    return [to_response(booking, service_name, user_name) for booking, service_name, user_name in rows]
 
 # Confirm booking
 @router.put("/pandit/bookings/{booking_id}/confirm")
@@ -299,7 +353,11 @@ def rate_user(
     total_rating = sum(r.rating for r in all_reviews) + review.rating
     user.rating_avg = total_rating / (len(all_reviews) + 1)
     
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="You have already reviewed this booking")
     return {"msg": "Review submitted successfully"}
 
 # View reviews received

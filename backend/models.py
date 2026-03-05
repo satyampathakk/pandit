@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, DateTime, Float, Text
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, DateTime, Float, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -85,6 +85,9 @@ class Booking(Base):
 
 class Review(Base):
     __tablename__ = "reviews"
+    __table_args__ = (
+        UniqueConstraint("booking_id", "reviewer_id", "reviewer_type", name="uq_review_once"),
+    )
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     booking_id = Column(String(36), ForeignKey("bookings.id", ondelete="CASCADE"), index=True)

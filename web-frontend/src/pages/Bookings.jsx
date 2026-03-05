@@ -13,7 +13,11 @@ export default function Bookings() {
   const [reviewBookingId, setReviewBookingId] = useState('');
   const [reviewRating, setReviewRating] = useState('5');
   const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [bookingDetail, setBookingDetail] = useState(null);
   const userType = getUserType();
   const isPandit = userType === 'pandit';
 
@@ -56,8 +60,48 @@ export default function Bookings() {
     setShowReviewModal(false);
   };
 
+  const openDetailModal = async (bookingId) => {
+    const token = getAuthToken();
+    if (!token) {
+      showMessage('Please login again.', 'error');
+      navigate('/');
+      return;
+    }
+
+    setDetailLoading(true);
+    setShowDetailModal(true);
+    setBookingDetail(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/user/bookings/${bookingId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBookingDetail(data);
+      } else {
+        const error = await response.json();
+        showMessage(error.detail || 'Failed to load booking details', 'error');
+        setShowDetailModal(false);
+      }
+    } catch (error) {
+      showMessage('Failed to load booking details', 'error');
+      console.error('Booking detail error:', error);
+      setShowDetailModal(false);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetailModal = () => {
+    setShowDetailModal(false);
+  };
+
   const submitReview = async (event) => {
     event.preventDefault();
+    if (reviewSubmitting) {
+      return;
+    }
     const token = getAuthToken();
     if (!token) {
       showMessage('Please login again.', 'error');
@@ -66,8 +110,12 @@ export default function Bookings() {
     }
 
     try {
+      setReviewSubmitting(true);
+      const endpoint = isPandit
+        ? `${API_BASE_URL}/pandit/bookings/${reviewBookingId}/review`
+        : `${API_BASE_URL}/user/bookings/${reviewBookingId}/review`;
       const response = await fetch(
-        `${API_BASE_URL}/user/bookings/${reviewBookingId}/review`,
+        endpoint,
         {
         method: 'POST',
         headers: {
@@ -91,6 +139,8 @@ export default function Bookings() {
     } catch (error) {
       showMessage('Error submitting review', 'error');
       console.error('Submit review error:', error);
+    } finally {
+      setReviewSubmitting(false);
     }
   };
 
@@ -188,7 +238,7 @@ export default function Bookings() {
                     {booking.status}
                   </span>
                   <div className="booking-actions" style={{ marginTop: '10px' }}>
-                    {!isPandit && booking.status === 'completed' ? (
+                    {!isPandit && booking.status === 'completed' && !booking.reviewed_by_user ? (
                       <button
                         type="button"
                         className="btn btn-secondary"
@@ -274,9 +324,22 @@ export default function Bookings() {
                             Mark Completed
                           </button>
                         ) : null}
+                        {booking.status === 'completed' && !booking.reviewed_by_pandit ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => openReviewModal(booking.id)}
+                          >
+                            Rate User
+                          </button>
+                        ) : null}
                       </>
                     ) : (
-                      <button type="button" className="btn btn-primary">
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => openDetailModal(booking.id)}
+                      >
                         View Details
                       </button>
                     )}
@@ -335,10 +398,49 @@ export default function Bookings() {
               />
             </div>
 
-            <button type="submit" className="btn btn-primary">
-              Submit Review
+            <button type="submit" className="btn btn-primary" disabled={reviewSubmitting}>
+              {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
             </button>
           </form>
+        </div>
+      </div>
+
+      <div id="detailModal" className={`modal ${showDetailModal ? '' : 'hidden'}`}>
+        <div className="modal-content">
+          <span className="close" onClick={closeDetailModal}>
+            &times;
+          </span>
+          <h3>Booking Details</h3>
+          {detailLoading ? <p className="loading">Loading details...</p> : null}
+          {!detailLoading && bookingDetail ? (
+            <div className="booking-summary">
+              <p>
+                <strong>Service:</strong>{' '}
+                {bookingDetail.service_name || `Service #${bookingDetail.service_id.slice(0, 8)}`}
+              </p>
+              <p>
+                <strong>Pandit:</strong>{' '}
+                {bookingDetail.pandit_name || `Pandit #${bookingDetail.pandit_id.slice(0, 8)}`}
+              </p>
+              <p>
+                <strong>Date:</strong> {new Date(bookingDetail.booking_date).toLocaleDateString()}
+              </p>
+              <p>
+                <strong>Status:</strong> {bookingDetail.status}
+              </p>
+              <p>
+                <strong>Amount:</strong> Rs {bookingDetail.total_amount}
+              </p>
+              <p>
+                <strong>Address:</strong> {bookingDetail.service_address}
+              </p>
+              {bookingDetail.service_location_name ? (
+                <p>
+                  <strong>Location:</strong> {bookingDetail.service_location_name}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

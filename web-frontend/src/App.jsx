@@ -7,6 +7,10 @@ import Pandits from './pages/Pandits.jsx';
 import Bookings from './pages/Bookings.jsx';
 import PanditOnboard from './pages/PanditOnboard.jsx';
 import ManageServices from './pages/ManageServices.jsx';
+import AdminLogin from './pages/AdminLogin.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
+import PanditPortal from './pages/PanditPortal.jsx';
+import PanditProfile from './pages/PanditProfile.jsx';
 
 function ProtectedRoute({ children, allowedTypes }) {
   const token = localStorage.getItem('token');
@@ -33,12 +37,23 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Auth />} />
+      <Route path="/admin" element={<AdminLogin />} />
       <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
             <AppLayout>
               <Dashboard />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute allowedTypes={['admin']}>
+            <AppLayout>
+              <AdminDashboard />
             </AppLayout>
           </ProtectedRoute>
         }
@@ -59,6 +74,16 @@ export default function App() {
           <ProtectedRoute allowedTypes={['user']}>
             <AppLayout>
               <Pandits />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pandits/:panditId"
+        element={
+          <ProtectedRoute allowedTypes={['user']}>
+            <AppLayout>
+              <PanditPortal />
             </AppLayout>
           </ProtectedRoute>
         }
@@ -85,6 +110,16 @@ export default function App() {
           <ProtectedRoute allowedTypes={['pandit']}>
             <AppLayout>
               <ManageServices />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pandit/profile"
+        element={
+          <ProtectedRoute allowedTypes={['pandit']}>
+            <AppLayout>
+              <PanditProfile />
             </AppLayout>
           </ProtectedRoute>
         }

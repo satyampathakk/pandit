@@ -144,6 +144,11 @@ class BookingResponse(BaseModel):
     service_location_name: Optional[str]
     status: str
     total_amount: float
+    service_name: Optional[str] = None
+    pandit_name: Optional[str] = None
+    user_name: Optional[str] = None
+    reviewed_by_user: Optional[bool] = None
+    reviewed_by_pandit: Optional[bool] = None
 
     class Config:
         from_attributes = True
@@ -152,7 +157,7 @@ class BookingStatusUpdate(BaseModel):
     status: str  # confirmed, rejected, completed, cancelled
 
 class ReviewCreate(BaseModel):
-    booking_id: str
+    booking_id: Optional[str] = None
     rating: int = Field(..., ge=1, le=5, description="Rating from 1 to 5")
     comment: str
 

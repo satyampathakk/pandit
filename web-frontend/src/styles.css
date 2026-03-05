@@ -614,6 +614,13 @@ h4 {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pandit-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
 }
 
 .pandit-avatar {
@@ -668,6 +675,25 @@ h4 {
 .load-more {
   display: flex;
   justify-content: center;
+}
+
+/* Separators */
+.section-separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-500);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.section-separator::before,
+.section-separator::after {
+  content: '';
+  height: 1px;
+  background: var(--border-200);
+  flex: 1;
 }
 
 /* Bookings */
@@ -882,6 +908,225 @@ h4 {
   padding: 22px;
   border-radius: 16px;
   border: 1px solid var(--border-200);
+}
+
+/* Pandit Portal */
+.pandit-portal-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.pandit-portal-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px;
+  border: 1px solid var(--border-200);
+  box-shadow: var(--shadow-soft);
+}
+
+.pandit-portal-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.pandit-portal-header h2 {
+  font-size: 22px;
+}
+
+.pandit-portal-avatar {
+  width: 84px;
+  height: 84px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid #f4e5d3;
+  box-shadow: 0 8px 16px rgba(44, 30, 16, 0.18);
+}
+
+.pandit-portal-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pandit-portal-rating {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pandit-portal-tags {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pandit-portal-side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.portal-price-card,
+.portal-trust-card,
+.portal-section-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px;
+  border: 1px solid var(--border-200);
+  box-shadow: var(--shadow-soft);
+}
+
+.portal-price-label {
+  color: var(--ink-500);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.portal-price-card h3 {
+  margin: 10px 0 12px;
+  font-size: 26px;
+  color: var(--orange-600);
+}
+
+.portal-benefits {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 16px;
+  display: grid;
+  gap: 8px;
+  color: var(--ink-500);
+  font-size: 13px;
+}
+
+.portal-trust-card h4 {
+  margin-bottom: 10px;
+}
+
+.portal-trust-card ul {
+  list-style: none;
+  padding-left: 0;
+  display: grid;
+  gap: 8px;
+  color: var(--ink-500);
+  font-size: 13px;
+}
+
+.portal-service-thumb {
+  background: linear-gradient(140deg, rgba(185, 90, 8, 0.85), rgba(26, 16, 10, 0.75));
+}
+
+/* Pandit Profile */
+.profile-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px;
+  border: 1px solid var(--border-200);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Admin */
+.admin-auth {
+  max-width: 520px;
+}
+
+.admin-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 24px;
+  padding: 34px;
+  border-radius: 20px;
+  background: linear-gradient(120deg, #1e2a2f, #3a4e55);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-lift);
+}
+
+.admin-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.18), transparent 45%);
+  pointer-events: none;
+}
+
+.admin-hero .hero-content,
+.admin-hero .hero-side {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-hero h1 {
+  color: #fff;
+}
+
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.admin-stat-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--border-200);
+  padding: 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-stat-label {
+  font-size: 12px;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: var(--ink-900);
+}
+
+.admin-pending-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.admin-pending-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 20px;
+  border: 1px solid var(--border-200);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-pending-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-pending-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-nav-actions {
+  gap: 0;
 }
 
 /* Messages */
@@ -1099,6 +1344,14 @@ h4 {
   }
 
   .dashboard-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .pandit-portal-hero {
     grid-template-columns: 1fr;
   }
 }

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
+from typing import Optional
 import models, schemas
 from auth import get_current_user, get_db
 from utils import calculate_distance, calculate_match_score
@@ -44,7 +46,14 @@ def view_services(
     limit: int = Query(10, ge=1, le=100)
 ):
     """View all available services"""
-    services = db.query(models.Service).offset(skip).limit(limit).all()
+    services = (
+        db.query(models.Service)
+        .join(models.Pandit, models.Service.pandit_id == models.Pandit.id)
+        .filter(models.Pandit.is_verified == True)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return services
 
 # Search services
@@ -59,7 +68,11 @@ def search_services(
     sort_by: str = Query("price_asc", pattern="^(price_asc|price_desc|name_asc|name_desc)$")
 ):
     """Search for services with filters"""
-    query = db.query(models.Service)
+    query = (
+        db.query(models.Service)
+        .join(models.Pandit, models.Service.pandit_id == models.Pandit.id)
+        .filter(models.Pandit.is_verified == True)
+    )
     
     if keyword:
         query = query.filter(
@@ -93,18 +106,39 @@ def search_services(
         "items": [schemas.ServiceResponse.from_orm(s) for s in services]
     }
 
+# Services for a specific pandit (users only, verified pandits only)
+@router.get("/user/pandits/{pandit_id}/services", response_model=list[schemas.ServiceResponse])
+def view_pandit_services(
+    pandit_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    pandit = db.query(models.Pandit).filter(models.Pandit.id == pandit_id).first()
+    if not pandit:
+        raise HTTPException(status_code=404, detail="Pandit not found")
+    if not pandit.is_verified:
+        raise HTTPException(status_code=403, detail="Pandit is not verified")
+
+    services = db.query(models.Service).filter(models.Service.pandit_id == pandit_id).all()
+    return services
+
 # Search pandits
 @router.get("/user/pandits/search", response_model=list[schemas.PanditWithDistance])
 def search_pandits(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    latitude: Optional[float] = Query(None, description="Override latitude for search"),
+    longitude: Optional[float] = Query(None, description="Override longitude for search"),
     max_distance_km: float = Query(50, description="Maximum distance in kilometers"),
     min_rating: float = Query(0, ge=0, le=5),
     max_price: float = Query(None),
     sort_by: str = Query("match_score", pattern="^(distance|price|rating|match_score)$")
 ):
     """Find nearby pandits with filters"""
-    if not user.latitude or not user.longitude:
+    origin_lat = latitude if latitude is not None else user.latitude
+    origin_lon = longitude if longitude is not None else user.longitude
+
+    if not origin_lat or not origin_lon:
         raise HTTPException(status_code=400, detail="Please set your location first")
     
     # Only show verified pandits to users
@@ -116,7 +150,7 @@ def search_pandits(
             continue
         
         distance = calculate_distance(
-            user.latitude, user.longitude,
+            origin_lat, origin_lon,
             pandit.latitude, pandit.longitude
         )
         
@@ -164,6 +198,39 @@ def search_pandits(
         matches.sort(key=lambda x: x.match_score, reverse=True)
     
     return matches
+
+# Get pandit detail (users only, verified pandits only)
+@router.get("/user/pandits/{pandit_id}", response_model=schemas.PanditResponse)
+def get_pandit_detail(
+    pandit_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    pandit = db.query(models.Pandit).filter(models.Pandit.id == pandit_id).first()
+    if not pandit:
+        raise HTTPException(status_code=404, detail="Pandit not found")
+    if not pandit.is_verified:
+        raise HTTPException(status_code=403, detail="Pandit is not verified")
+    return pandit
+
+# List all verified pandits (no distance filter)
+@router.get("/user/pandits", response_model=list[schemas.PanditResponse])
+def list_verified_pandits(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+):
+    """List verified pandits for fallback discovery."""
+    pandits = (
+        db.query(models.Pandit)
+        .filter(models.Pandit.is_verified == True)
+        .order_by(models.Pandit.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return pandits
 
 # Create booking
 @router.post("/user/bookings")
@@ -213,13 +280,100 @@ def view_my_bookings(
     status: str = Query(None, description="Filter by status")
 ):
     """View all bookings made by the user"""
-    query = db.query(models.Booking).filter(models.Booking.user_id == user.id)
+    query = (
+        db.query(
+            models.Booking,
+            models.Service.name.label("service_name"),
+            models.Pandit.full_name.label("pandit_name"),
+        )
+        .outerjoin(models.Service, models.Service.id == models.Booking.service_id)
+        .outerjoin(models.Pandit, models.Pandit.id == models.Booking.pandit_id)
+        .filter(models.Booking.user_id == user.id)
+    )
     
     if status:
         query = query.filter(models.Booking.status == status)
     
-    bookings = query.order_by(models.Booking.created_at.desc()).all()
-    return bookings
+    rows = query.order_by(models.Booking.created_at.desc()).all()
+    reviewed_ids = {
+        row.booking_id
+        for row in db.query(models.Review.booking_id)
+        .filter(
+            models.Review.reviewer_id == user.id,
+            models.Review.reviewer_type == "user",
+        )
+        .all()
+    }
+
+    def to_response(booking: models.Booking, service_name: Optional[str], pandit_name: Optional[str]):
+        return {
+            "id": booking.id,
+            "user_id": booking.user_id,
+            "pandit_id": booking.pandit_id,
+            "service_id": booking.service_id,
+            "booking_date": booking.booking_date,
+            "service_address": booking.service_address,
+            "service_latitude": booking.service_latitude,
+            "service_longitude": booking.service_longitude,
+            "service_location_name": booking.service_location_name,
+            "status": booking.status,
+            "total_amount": booking.total_amount,
+            "service_name": service_name,
+            "pandit_name": pandit_name,
+            "reviewed_by_user": booking.id in reviewed_ids,
+        }
+
+    return [to_response(booking, service_name, pandit_name) for booking, service_name, pandit_name in rows]
+
+# View booking detail (user)
+@router.get("/user/bookings/{booking_id}", response_model=schemas.BookingResponse)
+def view_booking_detail(
+    booking_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    row = (
+        db.query(
+            models.Booking,
+            models.Service.name.label("service_name"),
+            models.Pandit.full_name.label("pandit_name"),
+        )
+        .outerjoin(models.Service, models.Service.id == models.Booking.service_id)
+        .outerjoin(models.Pandit, models.Pandit.id == models.Booking.pandit_id)
+        .filter(models.Booking.id == booking_id, models.Booking.user_id == user.id)
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    booking, service_name, pandit_name = row
+    reviewed = (
+        db.query(models.Review)
+        .filter(
+            models.Review.booking_id == booking_id,
+            models.Review.reviewer_id == user.id,
+            models.Review.reviewer_type == "user",
+        )
+        .first()
+        is not None
+    )
+    return {
+        "id": booking.id,
+        "user_id": booking.user_id,
+        "pandit_id": booking.pandit_id,
+        "service_id": booking.service_id,
+        "booking_date": booking.booking_date,
+        "service_address": booking.service_address,
+        "service_latitude": booking.service_latitude,
+        "service_longitude": booking.service_longitude,
+        "service_location_name": booking.service_location_name,
+        "status": booking.status,
+        "total_amount": booking.total_amount,
+        "service_name": service_name,
+        "pandit_name": pandit_name,
+        "reviewed_by_user": reviewed,
+    }
 
 # Cancel booking
 @router.put("/user/bookings/{booking_id}/cancel")
@@ -297,5 +451,36 @@ def rate_pandit(
     total_rating = sum(r.rating for r in all_reviews) + review.rating
     pandit.rating_avg = total_rating / (len(all_reviews) + 1)
     
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="You have already reviewed this booking")
     return {"msg": "Review submitted successfully"}
+
+# View reviews received by the user
+@router.get("/user/reviews", response_model=list[schemas.ReviewResponse])
+def view_my_reviews(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    """View all reviews received by this user"""
+    reviews = db.query(models.Review).filter(
+        models.Review.reviewee_id == user.id,
+        models.Review.reviewee_type == "user"
+    ).all()
+    return reviews
+
+# View reviews for a specific pandit (user access)
+@router.get("/user/pandits/{pandit_id}/reviews", response_model=list[schemas.ReviewResponse])
+def view_pandit_reviews(
+    pandit_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    """View reviews received by a pandit"""
+    reviews = db.query(models.Review).filter(
+        models.Review.reviewee_id == pandit_id,
+        models.Review.reviewee_type == "pandit"
+    ).all()
+    return reviews
