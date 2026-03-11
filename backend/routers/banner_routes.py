@@ -17,12 +17,15 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.get("/banners/active", response_model=List[BannerResponse])
 async def get_active_banners(
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_pandit)
+    db: Session = Depends(get_db)
 ):
     """Get all active banners for users and pandits"""
-    banners = db.query(Banner).filter(Banner.is_active == True).all()
-    return banners
+    try:
+        banners = db.query(Banner).filter(Banner.is_active == True).all()
+        return banners
+    except Exception as e:
+        print(f"Error getting active banners: {e}")
+        return []
 
 @router.get("/admin/banners", response_model=List[BannerResponse])
 async def get_all_banners(

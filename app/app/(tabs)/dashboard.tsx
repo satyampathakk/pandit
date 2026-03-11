@@ -74,6 +74,7 @@ export default function DashboardScreen() {
   const [specialOffers, setSpecialOffers] = useState<SpecialOffer[]>([]);
   const [globalPricing, setGlobalPricing] = useState<GlobalPricing | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -83,13 +84,39 @@ export default function DashboardScreen() {
     }
     const load = async () => {
       setLoading(true);
+      setError(null);
       try {
+        // Make API calls with individual error handling
+        const dashboardPromise = apiGet<DashboardData>(
+          userType === 'pandit' ? '/pandit/dashboard' : '/user/dashboard', 
+          token
+        ).catch(error => {
+          console.error('Dashboard API error:', error);
+          return null;
+        });
+
+        const bannerPromise = apiGet<Banner[]>('/banners/active', token).catch(error => {
+          console.error('Banners API error:', error);
+          return [];
+        });
+
+        const offersPromise = apiGet<SpecialOffer[]>('/special-offers/active', token).catch(error => {
+          console.error('Special offers API error:', error);
+          return [];
+        });
+
+        const pricingPromise = apiGet<GlobalPricing | null>('/global-pricing/current', token).catch(error => {
+          console.error('Global pricing API error:', error);
+          return null;
+        });
+
         const [dashboardResponse, bannerResponse, offersResponse, pricingResponse] = await Promise.all([
-          apiGet<DashboardData>(userType === 'pandit' ? '/pandit/dashboard' : '/user/dashboard', token),
-          apiGet<Banner[]>('/banners/active', token),
-          apiGet<SpecialOffer[]>('/special-offers/active', token),
-          apiGet<GlobalPricing | null>('/global-pricing/current', token),
+          dashboardPromise,
+          bannerPromise,
+          offersPromise,
+          pricingPromise,
         ]);
+
         setData(dashboardResponse);
         
         // Find banner for current user type
@@ -109,6 +136,8 @@ export default function DashboardScreen() {
         setGlobalPricing(pricingResponse);
       } catch (error) {
         console.error('Dashboard error', error);
+        setError('Unable to load dashboard data. Please check your connection.');
+        // Don't throw the error, just log it and continue with default values
       } finally {
         setLoading(false);
       }
@@ -218,6 +247,12 @@ export default function DashboardScreen() {
 
   return (
     <Screen>
+      {error && (
+        <Card style={{ backgroundColor: '#ffebee', marginBottom: spacing.lg }}>
+          <Text style={{ color: '#c62828', textAlign: 'center' }}>{error}</Text>
+        </Card>
+      )}
+      
       {HeroComponent}
 
       {/* Special Offers Section */}
@@ -226,9 +261,18 @@ export default function DashboardScreen() {
           <Text style={styles.sectionTitle}>Special Offers</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.offersScroll}>
             <View style={styles.offersContainer}>
-              {specialOffers.map((offer) => (
-                <SpecialOfferBadge key={offer.id} offer={offer} style={styles.offerBadge} />
-              ))}
+              {specialOffers.map((offer) => {
+                try {
+                  return <SpecialOfferBadge key={offer.id} offer={offer} style={styles.offerBadge} />;
+                } catch (error) {
+                  console.error('Error rendering special offer badge:', error);
+                  return (
+                    <View key={offer.id} style={[styles.offerBadge, { backgroundColor: offer.effect_color, padding: 10, borderRadius: 8 }]}>
+                      <Text style={{ color: '#fff', fontSize: 10 }}>{offer.title}</Text>
+                    </View>
+                  );
+                }
+              })}
             </View>
           </ScrollView>
         </View>

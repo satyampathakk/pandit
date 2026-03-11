@@ -9,17 +9,20 @@ router = APIRouter()
 
 @router.get("/global-pricing/current", response_model=Optional[GlobalPricingResponse])
 async def get_current_global_pricing(
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_pandit)
+    db: Session = Depends(get_db)
 ):
     """Get the current active global pricing for users and pandits"""
-    pricing = (
-        db.query(GlobalPricing)
-        .filter(GlobalPricing.is_active == True)
-        .order_by(GlobalPricing.created_at.desc())
-        .first()
-    )
-    return pricing
+    try:
+        pricing = (
+            db.query(GlobalPricing)
+            .filter(GlobalPricing.is_active == True)
+            .order_by(GlobalPricing.created_at.desc())
+            .first()
+        )
+        return pricing
+    except Exception as e:
+        print(f"Error getting current global pricing: {e}")
+        return None
 
 @router.get("/admin/global-pricing", response_model=List[GlobalPricingResponse])
 async def get_all_global_pricing(

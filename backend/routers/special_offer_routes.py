@@ -10,22 +10,25 @@ router = APIRouter()
 
 @router.get("/special-offers/active", response_model=List[SpecialOfferResponse])
 async def get_active_special_offers(
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_or_pandit)
+    db: Session = Depends(get_db)
 ):
     """Get all active special offers for users and pandits"""
-    current_time = datetime.now()
-    offers = (
-        db.query(SpecialOffer)
-        .filter(
-            SpecialOffer.is_active == True,
-            SpecialOffer.start_date <= current_time,
-            (SpecialOffer.end_date.is_(None)) | (SpecialOffer.end_date >= current_time),
-            (SpecialOffer.max_uses.is_(None)) | (SpecialOffer.current_uses < SpecialOffer.max_uses)
+    try:
+        current_time = datetime.now()
+        offers = (
+            db.query(SpecialOffer)
+            .filter(
+                SpecialOffer.is_active == True,
+                SpecialOffer.start_date <= current_time,
+                (SpecialOffer.end_date.is_(None)) | (SpecialOffer.end_date >= current_time),
+                (SpecialOffer.max_uses.is_(None)) | (SpecialOffer.current_uses < SpecialOffer.max_uses)
+            )
+            .all()
         )
-        .all()
-    )
-    return offers
+        return offers
+    except Exception as e:
+        print(f"Error getting active special offers: {e}")
+        return []
 
 @router.get("/admin/special-offers", response_model=List[SpecialOfferResponse])
 async def get_all_special_offers(
